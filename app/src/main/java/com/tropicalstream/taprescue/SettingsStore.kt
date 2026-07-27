@@ -1,10 +1,10 @@
-package com.tropicalstream.x3pooyan
+package com.tropicalstream.taprescue
 
 import android.content.Context
 
 /** Persisted bits: sound toggle + the all-time high score (ratchets up only). */
 class SettingsStore(context: Context) {
-    private val prefs = context.getSharedPreferences("x3pooyan_settings", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences("taprescue_settings", Context.MODE_PRIVATE)
 
     var sound: Boolean
         get() = prefs.getBoolean("sound", true)

@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.tropicalstream.x3pooyan"
+    namespace = "com.tropicalstream.taprescue"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.tropicalstream.x3pooyan"
+        applicationId = "com.tropicalstream.taprescue"
         minSdk = 29
         targetSdk = 35
         versionCode = 1

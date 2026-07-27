@@ -1,4 +1,4 @@
-package com.tropicalstream.x3pooyan.ui
+package com.tropicalstream.taprescue.ui
 
 import android.content.Context
 import android.graphics.Canvas

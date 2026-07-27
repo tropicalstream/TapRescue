@@ -1,4 +1,4 @@
-package com.tropicalstream.x3pooyan.audio
+package com.tropicalstream.taprescue.audio
 
 import android.content.Context
 import android.media.AudioAttributes
@@ -15,7 +15,7 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * Synthesized SFX bank for X3Pooyan — every sound is generated at startup
+ * Synthesized SFX bank for TapRescue — every sound is generated at startup
  * (no audio binaries ship): arrow twangs, balloon pops, falling-wolf whistles,
  * rock thunks, meat whooshes with chain chimes, the boulder rumble-and-crash,
  * and little fanfares. Same SoundPool-on-a-worker pattern as TapPong /
@@ -67,7 +67,7 @@ class Sfx(private val context: Context) {
     private var handler: Handler? = null
 
     fun loadAsync() {
-        thread = HandlerThread("pooyan-sfx").apply { start() }
+        thread = HandlerThread("taprescue-sfx").apply { start() }
         handler = Handler(thread!!.looper)
         handler?.post {
             runCatching {

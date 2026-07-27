@@ -1,4 +1,4 @@
-package com.tropicalstream.x3pooyan.render
+package com.tropicalstream.taprescue.render
 
 import android.content.Context
 import android.graphics.Canvas
@@ -6,16 +6,16 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Typeface
 import android.view.View
-import com.tropicalstream.x3pooyan.game.Particles
-import com.tropicalstream.x3pooyan.game.PooyanGame
-import com.tropicalstream.x3pooyan.game.PooyanGame.Phase
-import com.tropicalstream.x3pooyan.game.PooyanGame.State
-import com.tropicalstream.x3pooyan.game.PooyanGame.WolfMode
+import com.tropicalstream.taprescue.game.Particles
+import com.tropicalstream.taprescue.game.PooyanGame
+import com.tropicalstream.taprescue.game.PooyanGame.Phase
+import com.tropicalstream.taprescue.game.PooyanGame.State
+import com.tropicalstream.taprescue.game.PooyanGame.WolfMode
 import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * All rendering for X3Pooyan on the 640×480 logical eye canvas — original
+ * All rendering for TapRescue on the 640×480 logical eye canvas — original
  * neon-vector art on pure black (waveguide-off): wireframe cliffs and ladders,
  * balloon wolves as angular magenta glyphs, Mama Pig in a golden gondola,
  * arcing meat, the boulder, caged piglets, and the HUD.
@@ -82,7 +82,7 @@ class PooyanView(
 
     private fun drawAttract(c: Canvas) {
         text.textAlign = Paint.Align.CENTER
-        neonText(c, "X3 POOYAN", 320f, 130f, 52f, PINK)
+        neonText(c, "TAPRESCUE", 320f, 130f, 52f, PINK)
         neonText(c, "MAMA PIG VS THE BALLOON WOLVES", 320f, 172f, 15f, CYAN)
 
         // a little scene: mama in her gondola + a wolf floating by
@@ -101,7 +101,7 @@ class PooyanView(
         c.drawText("Ride the lift. Pop every balloon. Bring them home.", 320f, 384f, text)
 
         text.color = DIM; text.textSize = 13f
-        c.drawText("pad ↑↓ move · tap shoot · flick ← meat · 2×tap pause", 320f, 446f, text)
+        c.drawText("pad ↑↓ move · tap shoot · flick ← meat", 320f, 446f, text)
         c.drawText("clear a round to free a piglet", 320f, 464f, text)
     }
 
@@ -589,7 +589,7 @@ class PooyanView(
         dimBox(c)
         neonText(c, "PAUSED", 320f, 225f, 34f, WHITE)
         text.color = DIM; text.textSize = 15f
-        c.drawText("tap or double-tap to resume", 320f, 258f, text)
+        c.drawText("tap to resume", 320f, 258f, text)
     }
 
     private fun drawGameOver(c: Canvas) {

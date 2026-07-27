@@ -1,13 +1,13 @@
-package com.tropicalstream.x3pooyan
+package com.tropicalstream.taprescue
 
 import android.app.Application
 
 /**
- * Application entry point. X3Pooyan renders via its own dual-draw
+ * Application entry point. TapRescue renders via its own dual-draw
  * BinocularSbsLayout, so the Mercury AAR is OPTIONAL — if present we init it
  * reflectively as a courtesy; if not, nothing happens. Never crash here.
  */
-class PooyanApp : Application() {
+class TapRescueApp : Application() {
     override fun onCreate() {
         super.onCreate()
         runCatching {

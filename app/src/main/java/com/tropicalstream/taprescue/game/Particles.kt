@@ -1,4 +1,4 @@
-package com.tropicalstream.x3pooyan.game
+package com.tropicalstream.taprescue.game
 
 import android.graphics.Canvas
 import android.graphics.Color

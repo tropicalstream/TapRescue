@@ -1,4 +1,4 @@
-package com.tropicalstream.x3pooyan.input
+package com.tropicalstream.taprescue.input
 
 import android.os.Handler
 import android.os.Looper
@@ -25,7 +25,6 @@ class TrackpadGestureEngine {
 
     companion object {
         const val SHORT_TAP_MAX_MS = 300L
-        const val DOUBLE_TAP_WINDOW_MS = 300L
         const val LONG_TAP_MIN_MS = 550L
         const val SYSTEM_HOLD_MS = 450L
         const val KEY_TAP_MAX_MS = 400L
@@ -41,13 +40,11 @@ class TrackpadGestureEngine {
     }
 
     var onTap: (() -> Unit)? = null
-    var onDoubleTap: (() -> Unit)? = null
-    var onTripleTap: (() -> Unit)? = null
     var onLongTap: (() -> Unit)? = null
     var onSwipeVertical: ((direction: Int) -> Unit)? = null   // -1 up, +1 down
     var onSwipeHorizontal: ((direction: Int) -> Unit)? = null // -1 left, +1 right
     /** Continuous right-pad drag deltas (raw pad px per MOVE event) — the
-     *  paddle-control channel X3Pooyan adds to the shared engine. Fires on
+     *  paddle-control channel TapRescue adds to the shared engine. Fires on
      *  every ACTION_MOVE alongside (not instead of) tap/swipe detection. */
     var onDrag: ((dx: Float, dy: Float) -> Unit)? = null
     var onLeftTap: (() -> Unit)? = null
@@ -63,17 +60,16 @@ class TrackpadGestureEngine {
 
     private var lastTapMs = 0L
     private var lastTapSource = -1
-    private var tapStreak = 0
-    private val resolveTaps = Runnable {
-        val streak = tapStreak
-        tapStreak = 0
-        when {
-            streak >= 3 -> onTripleTap?.invoke()
-            streak == 2 -> onDoubleTap?.invoke()
-            streak == 1 -> onTap?.invoke()
-        }
-    }
 
+    /**
+     * Fires on every qualifying tap immediately — no window, no coalescing.
+     * There is no multi-tap gesture left in this game (double-tap pause was
+     * removed: shooting fast is the whole point, and holding a shot back to
+     * see if a second one follows within a window is exactly backwards for
+     * a shooter). What remains is real hardware dedup: the SAME physical
+     * click can arrive on both the touch and key paths (see the class
+     * doc), and a worn pad can bounce — those still need suppressing.
+     */
     private fun registerTap(source: Int) {
         val now = SystemClock.uptimeMillis()
         val gap = now - lastTapMs
@@ -83,10 +79,7 @@ class TrackpadGestureEngine {
         }
         lastTapMs = now
         lastTapSource = source
-        tapStreak += 1
-        handler.removeCallbacks(resolveTaps)
-        if (tapStreak >= 3) resolveTaps.run()
-        else handler.postDelayed(resolveTaps, DOUBLE_TAP_WINDOW_MS)
+        onTap?.invoke()
     }
 
     private var keyDownMs = 0L

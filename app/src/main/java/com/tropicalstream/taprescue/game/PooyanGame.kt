@@ -1,4 +1,4 @@
-package com.tropicalstream.x3pooyan.game
+package com.tropicalstream.taprescue.game
 
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -6,7 +6,7 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * X3Pooyan — an original, from-scratch remake of the classic 1982 "wolves on
+ * TapRescue — an original, from-scratch remake of the classic 1982 "wolves on
  * balloons" fixed shooter, tuned for the RayNeo X3 Pro's temple pad.
  *
  * A level = two rounds + a bonus stage:

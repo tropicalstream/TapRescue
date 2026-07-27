@@ -1,4 +1,4 @@
-package com.tropicalstream.x3pooyan
+package com.tropicalstream.taprescue
 
 import android.app.Activity
 import android.content.Context
@@ -14,21 +14,20 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import com.tropicalstream.x3pooyan.audio.Sfx
-import com.tropicalstream.x3pooyan.game.Particles
-import com.tropicalstream.x3pooyan.game.PooyanGame
-import com.tropicalstream.x3pooyan.input.TrackpadGestureEngine
-import com.tropicalstream.x3pooyan.render.PooyanView
-import com.tropicalstream.x3pooyan.ui.BinocularSbsLayout
+import com.tropicalstream.taprescue.audio.Sfx
+import com.tropicalstream.taprescue.game.Particles
+import com.tropicalstream.taprescue.game.PooyanGame
+import com.tropicalstream.taprescue.input.TrackpadGestureEngine
+import com.tropicalstream.taprescue.render.PooyanView
+import com.tropicalstream.taprescue.ui.BinocularSbsLayout
 
 /**
- * X3Pooyan — the balloon-wolf fixed shooter, remade for the RayNeo X3 Pro.
+ * TapRescue — the balloon-wolf fixed shooter, remade for the RayNeo X3 Pro.
  *
  * Controls (right temple pad):
  *   slide up/down — move Mama Pig's lift (continuous)
  *   tap           — shoot an arrow (start / resume / restart on menus)
  *   flick left    — hurl a meat slab (chains wolves!)
- *   double-tap    — pause / resume
  *   long-hold     — RayNeo system Control Center / exit
  */
 class MainActivity : Activity() {
@@ -76,7 +75,6 @@ class MainActivity : Activity() {
             // flick LEFT hurls meat toward the wolves (they're always to the left)
             if (direction < 0) game.onMeatGesture()
         }
-        gestures.onDoubleTap = { game.togglePause() }
         gestures.onLongTap = { openRayNeoControlCenter() }
 
         wireGameEvents()
