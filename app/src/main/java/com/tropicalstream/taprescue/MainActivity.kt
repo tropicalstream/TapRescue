@@ -112,6 +112,32 @@ class MainActivity : Activity() {
             sfx.play(Sfx.POP_TOUGH)
             particles.burst(x, y, PooyanView.GOLD, 5, 110f)
         }
+        // Wolf powers. Each reuses the existing bank at a shifted pitch rather
+        // than adding samples: the family of sounds stays recognisable, and a
+        // dodge is audibly a cousin of a blocked hit rather than a new noise
+        // the player has to learn from scratch.
+        game.onWolfDodge = { x, y ->
+            sfx.play(Sfx.POP_TOUGH, pitch = 1.5f, vol = 0.8f)
+            particles.burst(x, y, PooyanView.WHITE, 8, 150f)
+        }
+        game.onWolfDive = { x, y ->
+            sfx.play(Sfx.FALL, pitch = 0.7f)
+            particles.burst(x, y, PooyanView.RED, 10, 170f)
+        }
+        game.onSplit = { x, y ->
+            sfx.play(Sfx.POP, pitch = 1.45f)
+            particles.burst(x, y, PooyanView.CYAN, 18, 220f)
+        }
+        game.onHowl = { x, y ->
+            sfx.play(Sfx.RUMBLE, pitch = 1.5f, vol = 0.9f)
+            particles.burst(x, y, PooyanView.GREEN, 22, 260f)
+        }
+        game.onPigletStolen = { x, y ->
+            // A high, sharp cousin of the death sting: unmistakably bad, and
+            // unmistakably not the sound of losing a life.
+            sfx.play(Sfx.DEATH, pitch = 1.35f, vol = 0.85f)
+            particles.burst(x, y, PooyanView.MAGENTA, 20, 200f)
+        }
         game.onWolfFall = { sfx.play(Sfx.FALL) }
         game.onWolfLand = { x ->
             sfx.play(Sfx.THUD, vol = 0.7f)

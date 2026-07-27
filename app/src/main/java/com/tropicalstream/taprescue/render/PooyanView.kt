@@ -87,8 +87,11 @@ class PooyanView(
 
         // a little scene: mama in her gondola + a wolf floating by
         drawLiftAt(c, 470f, 260f)
-        drawBalloonWolf(c, 200f + sin(t * 0.9f) * 24f, 250f + sin(t * 0.7f) * 16f, false, 1f)
-        drawBalloonWolf(c, 300f + sin(t * 1.1f) * 18f, 300f - sin(t * 0.8f) * 14f, true, 1f)
+        // Two for the title card: an ordinary wolf and an armoured one. Deliberately
+        // not the exotic powers — the attract screen should promise the game's
+        // opening, not spoil what level six looks like.
+        drawBalloonWolf(c, attractWolf(200f + sin(t * 0.9f) * 24f, 250f + sin(t * 0.7f) * 16f, false))
+        drawBalloonWolf(c, attractWolf(300f + sin(t * 1.1f) * 18f, 300f - sin(t * 0.8f) * 14f, true))
         drawPiglets(c)          // the cage, so the story below has a subject
         text.textAlign = Paint.Align.CENTER
 
@@ -338,39 +341,116 @@ class PooyanView(
 
     // ------------------------------------------------------------- actors
 
+    /**
+     * Every power reads as a COLOUR plus a SHAPE, never colour alone. On a
+     * waveguide in a bright room, hue is the first thing to go, and a player
+     * who cannot tell a dodger from an ordinary wolf until their arrow passes
+     * through it will read the whole mechanic as the game cheating.
+     */
+    private fun powerColour(p: PooyanGame.Power): Int = when (p) {
+        PooyanGame.Power.ARMOURED -> GOLD
+        PooyanGame.Power.DODGER -> WHITE
+        PooyanGame.Power.DIVER -> RED
+        PooyanGame.Power.THIEF -> MAGENTA
+        PooyanGame.Power.HOWLER -> GREEN
+        PooyanGame.Power.SPLITTER -> CYAN
+        PooyanGame.Power.NONE -> CYAN
+    }
+
     private fun drawWolf(c: Canvas, w: PooyanGame.Wolf) {
         when (w.mode) {
-            WolfMode.BALLOON -> drawBalloonWolf(c, w.x, w.y, w.special, w.hp / 2f)
+            WolfMode.BALLOON -> drawBalloonWolf(c, w)
             WolfMode.FALLING -> {
                 c.save()
                 c.rotate(sin(t * 14f) * 24f, w.x, w.y)
                 drawWolfBody(c, w.x, w.y)
                 c.restore()
             }
-            WolfMode.WALKING -> drawWolfBody(c, w.x, w.y, running = true)
+            WolfMode.WALKING -> {
+                drawWolfBody(c, w.x, w.y, running = true)
+                if (w.power == PooyanGame.Power.THIEF) drawSack(c, w.x - 12f, w.y + 2f)
+            }
             WolfMode.CLIMBING -> {
                 drawWolfBody(c, w.x, w.y)
                 // hungry eyes flash as it climbs
                 paint.color = RED
                 c.drawCircle(w.x - 4f, w.y - 8f, 1.8f, paint)
                 c.drawCircle(w.x + 2f, w.y - 8f, 1.8f, paint)
+                // The sack stays visible the whole way up. A thief on the ladder
+                // is the single most urgent target on screen, and the player has
+                // to be able to pick it out of a crowd of ordinary climbers.
+                if (w.power == PooyanGame.Power.THIEF) drawSack(c, w.x - 12f, w.y + 2f)
             }
             else -> {}
         }
     }
 
-    private fun drawBalloonWolf(c: Canvas, x: Float, y: Float, special: Boolean, hpFrac: Float) {
-        // balloon
-        val col = if (special) GOLD else CYAN
+    /** A throwaway wolf for the title card, which has no simulation behind it. */
+    private fun attractWolf(x: Float, y: Float, armoured: Boolean) = PooyanGame.Wolf(
+        x = x, y = y,
+        hp = if (armoured) 2 else 1,
+        special = armoured,
+        power = if (armoured) PooyanGame.Power.ARMOURED else PooyanGame.Power.NONE
+    )
+
+    private fun drawBalloonWolf(c: Canvas, w: PooyanGame.Wolf) {
+        val x = w.x
+        val y = w.y
+        val p = w.power
+        val col = powerColour(p)
         stroke.color = col; stroke.strokeWidth = 2.4f
         glowCircle(c, x, y - 26f, 15f, col)
-        c.drawCircle(x, y - 26f, 15f, stroke)
-        if (special && hpFrac > 0.5f) c.drawCircle(x, y - 26f, 10f, stroke)   // double ring = 2 hits
-        // string
+
+        when {
+            // A SPLITTER is two balloons lashed together — the silhouette says
+            // what popping it will get you before you spend the arrow.
+            p == PooyanGame.Power.SPLITTER && w.canSplit -> {
+                c.drawCircle(x - 7f, y - 27f, 11f, stroke)
+                c.drawCircle(x + 7f, y - 27f, 11f, stroke)
+            }
+            // A DIVER that has cut its own balloon trails the shredded remains,
+            // so a wolf dropping at three times the usual rate is never a
+            // mystery — you can see exactly why.
+            p == PooyanGame.Power.DIVER && w.diving -> {
+                for (k in -1..1) {
+                    c.drawLine(x + k * 6f, y - 30f, x + k * 9f, y - 14f, stroke)
+                }
+            }
+            else -> c.drawCircle(x, y - 26f, 15f, stroke)
+        }
+
+        // Two hits left: a second ring inside the first.
+        if (w.special && w.hp > 1) c.drawCircle(x, y - 26f, 10f, stroke)
+        // A DODGER that has already spent its sidestep drops its white tell and
+        // is drawn as the ordinary wolf it now is. Keeping the marking would
+        // promise a dodge it can no longer perform.
+        if (p == PooyanGame.Power.DODGER && !w.dodged) {
+            stroke.strokeWidth = 1.6f
+            c.drawLine(x - 19f, y - 26f, x - 13f, y - 26f, stroke)
+            c.drawLine(x + 13f, y - 26f, x + 19f, y - 26f, stroke)
+        }
+        // A HOWLER carries its open mouth up top: a small notch out of the
+        // balloon, plus the green.
+        if (p == PooyanGame.Power.HOWLER) {
+            stroke.strokeWidth = 2f
+            c.drawArc(x - 9f, y - 44f, x + 9f, y - 30f, 200f, 140f, false, stroke)
+        }
+
         stroke.strokeWidth = 1.4f; stroke.alpha = 170
         c.drawLine(x, y - 11f, x, y - 2f, stroke)
         stroke.alpha = 255
         drawWolfBody(c, x, y + 8f)
+
+        // A THIEF is already carrying the sack it means to fill.
+        if (p == PooyanGame.Power.THIEF) drawSack(c, x + 12f, y + 10f)
+    }
+
+    /** The thief's swag bag. Also drawn while it walks and climbs. */
+    private fun drawSack(c: Canvas, x: Float, y: Float) {
+        stroke.color = MAGENTA; stroke.strokeWidth = 1.8f
+        c.drawCircle(x, y, 5f, stroke)
+        c.drawLine(x - 3f, y - 5f, x, y - 9f, stroke)
+        c.drawLine(x + 3f, y - 5f, x, y - 9f, stroke)
     }
 
     /**
@@ -587,6 +667,17 @@ class PooyanView(
             Phase.BONUS -> "meat only — chain the pack for the piglets!"
         }
         c.drawText(hint, 320f, 258f, text)
+
+        // Name the new power the level it arrives, on the descent card only —
+        // the player should never have to work out by dying what changed. It
+        // sits below the hint in the power's own colour, so the words and the
+        // thing they describe are already linked before the first one appears.
+        if (game.phase == Phase.DESCENT) {
+            val fresh = game.powerIntroducedThisLevel()
+            if (fresh != null && fresh != PooyanGame.Power.NONE) {
+                neonText(c, "NEW: " + fresh.label, 320f, 292f, 15f, powerColour(fresh))
+            }
+        }
     }
 
     private fun drawLifeLost(c: Canvas) {

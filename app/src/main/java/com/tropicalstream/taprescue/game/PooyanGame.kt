@@ -59,21 +59,58 @@ class PooyanGame {
 
         /** Length of the opening abduction cutscene. Tap skips it. */
         const val STORY_SECS = 7.4f
+        /** How much faster the pack moves while a howl is ringing. */
+        const val FRENZY_SCALE = 1.45f
+        const val FRENZY_SECONDS = 3.2f
+        /** Thefts tolerated in a level before one costs a life. */
+        const val STOLEN_PER_LIFE = 3
     }
 
     enum class State { ATTRACT, STORY, ROUND_INTRO, PLAYING, LIFE_LOST, ROUND_CLEAR, GAME_OVER, PAUSED }
     enum class Phase { DESCENT, ASCENT, BONUS }
     enum class WolfMode { BALLOON, FALLING, WALKING, CLIMBING, PUSHER, ESCAPED }
 
+    /**
+     * What a wolf can do beyond simply descending at you.
+     *
+     * Level 1 is deliberately plain: one wolf, one balloon, one arrow. From
+     * level 2 each round adds exactly ONE new power to the pool, so the player
+     * always knows which new thing just killed them. Introducing two at once
+     * turns a lesson into noise.
+     *
+     * Each power answers "what does the player have to do DIFFERENTLY", not
+     * "how much more health does this have" — a tougher wolf is arithmetic, a
+     * wolf that sidesteps is a new problem.
+     *
+     * @param label shown in the round-intro card the level it first appears.
+     * @param fromLevel the first level this can spawn.
+     */
+    enum class Power(val label: String, val fromLevel: Int) {
+        NONE("", 1),
+        ARMOURED("ARMOURED — two hits", 1),
+        DODGER("DODGERS — they sidestep your first arrow", 2),
+        DIVER("DIVERS — they cut their own balloon", 3),
+        THIEF("THIEVES — they climb past you and take a piglet", 4),
+        HOWLER("HOWLERS — their howl drives the pack faster", 5),
+        SPLITTER("SPLITTERS — pop one and you get two", 6);
+    }
+
     class Wolf(
         var x: Float, var y: Float,
         var mode: WolfMode = WolfMode.BALLOON,
-        var hp: Int = 1,                 // balloon hits left (special wolves: 2)
-        val special: Boolean = false,
+        var hp: Int = 1,                 // balloon hits left (armoured wolves: 2)
+        val special: Boolean = false,    // armoured; kept for save/render compatibility
         var vx: Float = 0f, var vy: Float = 0f,
         var sway: Float = Random.nextFloat() * 6.28f,
         var rockTimer: Float = 1.5f + Random.nextFloat() * 3f,
-        var grabbed: Boolean = false     // already lured by the current meat
+        var grabbed: Boolean = false,    // already lured by the current meat
+        val power: Power = Power.NONE,
+        /** A dodger spends its sidestep once, then it is an ordinary wolf. */
+        var dodged: Boolean = false,
+        /** A diver has already cut its balloon and is dropping fast. */
+        var diving: Boolean = false,
+        /** Splitter halves must not split again, or one pop becomes an avalanche. */
+        var canSplit: Boolean = true
     )
 
     class Arrow(var x: Float, var y: Float)
@@ -94,6 +131,10 @@ class PooyanGame {
     var boulderX = 110f; private set
     var boulderY = LEDGE_Y - 26f; private set
     var pigletsFreed = 0; private set
+    /** Piglets carried off by THIEVES this level. Three costs a life. */
+    var pigletsStolen = 0; private set
+    /** Seconds of pack frenzy left after a HOWLER landed. Drives the render. */
+    var frenzyTimer = 0f; private set
     var deathCause = ""; private set
 
     val wolves = ArrayList<Wolf>()
@@ -103,6 +144,11 @@ class PooyanGame {
 
     // ---- events (MainActivity wires sound/particles) ----
     var onShoot: (() -> Unit)? = null
+    var onWolfDodge: ((x: Float, y: Float) -> Unit)? = null
+    var onWolfDive: ((x: Float, y: Float) -> Unit)? = null
+    var onSplit: ((x: Float, y: Float) -> Unit)? = null
+    var onHowl: ((x: Float, y: Float) -> Unit)? = null
+    var onPigletStolen: ((x: Float, y: Float) -> Unit)? = null
     var onPop: ((x: Float, y: Float, special: Boolean) -> Unit)? = null
     var onToughHit: ((x: Float, y: Float) -> Unit)? = null
     var onWolfFall: (() -> Unit)? = null
@@ -124,6 +170,8 @@ class PooyanGame {
     var onRescue: (() -> Unit)? = null
 
     private var spawnQueue = 0
+    /** Splitter halves, applied after every iterator has finished with the list. */
+    private val pendingSpawns = ArrayList<Wolf>()
     private var spawnTimer = 0f
     private var shootCooldown = 0f
     private var killsTowardMeat = 0
@@ -169,6 +217,7 @@ class PooyanGame {
     fun debugStart(p: Phase) {
         level = 1; score = 0; lives = 5; meat = 2
         killsTowardMeat = 0; nextLifeAt = EXTRA_LIFE_FIRST; pigletsFreed = 0
+        pigletsStolen = 0; frenzyTimer = 0f; pendingSpawns.clear()
         onStart?.invoke()
         beginPhase(p)
     }
@@ -178,6 +227,7 @@ class PooyanGame {
     private fun startGame() {
         level = 1; score = 0; lives = 5; meat = 2
         killsTowardMeat = 0; nextLifeAt = EXTRA_LIFE_FIRST; pigletsFreed = 0
+        pigletsStolen = 0; frenzyTimer = 0f; pendingSpawns.clear()
         onStart?.invoke()
         // The abduction plays first: the player should SEE the wolves take the
         // piglets, so round 1 is a rescue they already care about rather than
@@ -193,6 +243,7 @@ class PooyanGame {
         boulderActive = false; boulderFalling = false
         boulderX = 110f; boulderY = LEDGE_Y - 26f
         rescuedThisLevel = false
+        frenzyTimer = 0f; pendingSpawns.clear()
         liftY = 260f
         spawnQueue = when (p) {
             Phase.DESCENT -> 10 + level * 2
@@ -291,12 +342,20 @@ class PooyanGame {
 
     private fun updatePlaying(dt: Float) {
         if (shootCooldown > 0f) shootCooldown -= dt
+        if (frenzyTimer > 0f) frenzyTimer -= dt
         spawnWolves(dt)
         updateWolves(dt)
         updateArrows(dt)
         updateRocks(dt)
         updateMeats(dt)
         updateBoulder(dt)
+        // Structural changes to the wolf list land here, once, outside every
+        // iterator: splitter halves join and spent parents leave.
+        if (pendingSpawns.isNotEmpty()) {
+            wolves.addAll(pendingSpawns)
+            pendingSpawns.clear()
+            wolves.removeAll { it.mode == WolfMode.ESCAPED }
+        }
 
         // Wave complete: queue empty and nothing threatening left in flight.
         // Pushers who never mustered the full gang just flee at round end, so
@@ -320,22 +379,77 @@ class PooyanGame {
         spawnTimer = interval * (0.75f + rng.nextFloat() * 0.5f)
         spawnQueue--
 
-        val special = phase != Phase.BONUS && rng.nextFloat() < (0.072f + level * 0.024f).coerceAtMost(0.36f)
+        val power = rollPower()
+        val special = power == Power.ARMOURED
         when (phase) {
             Phase.DESCENT -> wolves.add(Wolf(
                 x = 60f + rng.nextFloat() * 380f, y = LEDGE_Y + 10f,
-                hp = if (special) 2 else 1, special = special,
+                hp = if (special) 2 else 1, special = special, power = power,
                 vy = (20.4f + level * 2.4f) * (0.9f + rng.nextFloat() * 0.4f)
             ))
             Phase.ASCENT -> wolves.add(Wolf(
                 x = 70f + rng.nextFloat() * 360f, y = GROUND_Y - 8f,
-                hp = if (special) 2 else 1, special = special,
+                hp = if (special) 2 else 1, special = special, power = power,
                 vy = -(24f + level * 2.4f) * (0.9f + rng.nextFloat() * 0.4f)
             ))
             Phase.BONUS -> wolves.add(Wolf(
                 x = 140f + (spawnQueue % 5) * 70f, y = GROUND_Y - 8f,
                 vy = -46f
             ))
+        }
+    }
+
+    /**
+     * Pick this wolf's power, if any.
+     *
+     * The pool only ever contains powers the player has already been shown, and
+     * the overall chance of getting ANY power climbs with the level while the
+     * choice within the pool stays flat. That keeps a late round varied rather
+     * than drowning in whichever power happens to be newest.
+     *
+     * The bonus phase is always plain: it is the breather that makes the rest
+     * legible by contrast, and cluttering it would cost more than it added.
+     */
+    private fun rollPower(): Power {
+        if (phase == Phase.BONUS) return Power.NONE
+        val chance = (0.10f + level * 0.055f).coerceAtMost(0.55f)
+        if (rng.nextFloat() >= chance) return Power.NONE
+        val pool = Power.values().filter { it != Power.NONE && it.fromLevel <= level }
+        if (pool.isEmpty()) return Power.NONE
+        return pool[rng.nextInt(pool.size)]
+    }
+
+    /** The newest power this level, for the round-intro card. Null on level 1. */
+    fun powerIntroducedThisLevel(): Power? =
+        Power.values().firstOrNull { it != Power.NONE && it.fromLevel == level }
+
+    /** Speed multiplier applied to every wolf while a howl is still ringing. */
+    private fun frenzyScale(): Float = if (frenzyTimer > 0f) FRENZY_SCALE else 1f
+
+    private fun startFrenzy(x: Float, y: Float) {
+        // Refreshed rather than stacked: two howlers landing together should
+        // mean a longer scare, not a pack moving at double speed, which would
+        // be unreadable and unsurvivable at once.
+        frenzyTimer = FRENZY_SECONDS
+        onHowl?.invoke(x, y)
+    }
+
+    /**
+     * A thief got over the lip with one of the piglets.
+     *
+     * Deliberately not an instant death. Losing a life to something that
+     * happened at the top of the screen while you were dealing with the bottom
+     * would read as unfair; losing a piglet is legible, felt, and recoverable.
+     * The third one in a level is the one that costs you, and by then the
+     * player has had two clear warnings about exactly what is happening.
+     */
+    private fun stealPiglet(x: Float, y: Float) {
+        pigletsStolen++
+        score = (score - 800).coerceAtLeast(0)
+        onPigletStolen?.invoke(x, y)
+        if (pigletsStolen >= STOLEN_PER_LIFE) {
+            pigletsStolen = 0
+            loseLife("A THIEF TOOK A PIGLET")
         }
     }
 
@@ -347,12 +461,28 @@ class PooyanGame {
                 WolfMode.BALLOON -> {
                     w.sway += dt * 2.2f
                     w.x += sin(w.sway) * 14f * dt
-                    w.y += w.vy * dt
+                    w.y += w.vy * dt * frenzyScale()
                     if (phase != Phase.BONUS) maybeThrowRock(w, dt)
+                    // A DIVER slashes its own balloon partway down and drops.
+                    // The point is that ignoring a distant wolf stops being
+                    // safe: the thing you filed away as "later" is suddenly on
+                    // the ground. It commits below a third of the way so the
+                    // player always sees the cut happen rather than merely
+                    // finding the wolf already landed.
+                    if (w.power == Power.DIVER && !w.diving && phase == Phase.DESCENT &&
+                        w.y > LEDGE_Y + 70f
+                    ) {
+                        w.diving = true
+                        w.vy *= 3.4f
+                        onWolfDive?.invoke(w.x, w.y)
+                    }
                     when (phase) {
                         Phase.DESCENT -> if (w.y >= GROUND_Y - 14f) {
                             w.mode = WolfMode.WALKING; w.y = GROUND_Y - 14f
                             onWolfLand?.invoke(w.x)
+                            // A HOWLER announces itself the moment it lands and
+                            // whips the whole pack along for a few seconds.
+                            if (w.power == Power.HOWLER) startFrenzy(w.x, w.y)
                         }
                         Phase.ASCENT, Phase.BONUS -> if (w.y <= LEDGE_Y + 16f) {
                             if (phase == Phase.ASCENT && w.x < 220f) {
@@ -378,11 +508,11 @@ class PooyanGame {
                     }
                 }
                 WolfMode.WALKING -> {
-                    w.x += 75f * dt
+                    w.x += 75f * dt * frenzyScale()
                     if (w.x >= LIFT_X - 6f) { w.mode = WolfMode.CLIMBING; w.x = LIFT_X - 6f; w.sway = 0f }
                 }
                 WolfMode.CLIMBING -> {
-                    w.y -= (18f + level * 1.8f) * dt
+                    w.y -= (18f + level * 1.8f) * dt * frenzyScale()
                     w.sway += dt
                     if (w.sway > 0.55f) { w.sway = 0f; onClimbTick?.invoke() }
                     // Drew level with the lift → Mama is eaten (round 1 death).
@@ -390,7 +520,14 @@ class PooyanGame {
                         loseLife("EATEN BY A WOLF")
                         return
                     }
-                    if (w.y <= LIFT_MIN_Y - 30f) { it.remove() }   // leapt off the top, gone
+                    if (w.y <= LIFT_MIN_Y - 30f) {
+                        // Off the top. For every other wolf this was always a
+                        // free escape, which quietly made climbers past Mama
+                        // worth ignoring. A THIEF is the one that punishes it:
+                        // it goes over the lip and comes back with a piglet.
+                        if (w.power == Power.THIEF) stealPiglet(w.x, w.y)
+                        it.remove()
+                    }
                 }
                 WolfMode.PUSHER, WolfMode.ESCAPED -> { /* parked at the boulder / gone */ }
             }
@@ -456,6 +593,20 @@ class PooyanGame {
                 if (w.mode != WolfMode.BALLOON) continue
                 val bx = w.x; val by = w.y - 22f   // balloon sits above the wolf
                 if (hypot(a.x - bx, a.y - by) < 20f) {
+                    // A DODGER spends its sidestep here and becomes ordinary.
+                    // The arrow is consumed either way, so the cost is a shot
+                    // and the time to take another — enough to matter in a
+                    // crowded sky, never enough to feel like the hit was stolen
+                    // from you, because the wolf visibly jumps.
+                    if (w.power == Power.DODGER && !w.dodged) {
+                        w.dodged = true
+                        val dir = if (w.y < liftY) 1f else -1f
+                        w.y += 26f * dir
+                        w.sway += 1.6f
+                        it.remove()
+                        onWolfDodge?.invoke(w.x, w.y - 22f)
+                        continue@outer
+                    }
                     it.remove()
                     w.hp--
                     if (w.hp <= 0) popBalloon(w) else onToughHit?.invoke(bx, by)
@@ -466,6 +617,35 @@ class PooyanGame {
     }
 
     private fun popBalloon(w: Wolf) {
+        // A SPLITTER does not fall — it becomes two smaller wolves, which is
+        // the one power that punishes leaving a clean-up until late. The halves
+        // cannot split again (canSplit = false); without that guard a single
+        // arrow would eventually fill the screen.
+        if (w.power == Power.SPLITTER && w.canSplit && phase != Phase.BONUS) {
+            w.canSplit = false
+            addScore(150)
+            onSplit?.invoke(w.x, w.y - 22f)
+            // Deferred, NOT applied here. popBalloon is reached from inside a
+            // for-in over `wolves`, and adding or removing during that iteration
+            // throws ConcurrentModificationException — the same crash this file
+            // already had once in the arrow-vs-climber path. The caller happens
+            // to break out immediately, but a crash bug should not depend on a
+            // control-flow accident that the next edit could quietly remove.
+            for (side in intArrayOf(-1, 1)) {
+                pendingSpawns.add(Wolf(
+                    x = (w.x + side * 26f).coerceIn(40f, 460f),
+                    y = w.y,
+                    hp = 1, special = false, power = Power.NONE,
+                    vy = w.vy * 0.86f, canSplit = false
+                ))
+            }
+            // ESCAPED is skipped by every update branch and drawn by none, so
+            // the parent is inert from this instant until the sweep clears it.
+            w.mode = WolfMode.ESCAPED
+            // Nothing below applies: there is no body to drop and no meat to
+            // credit, because the wolf did not actually die.
+            return
+        }
         w.mode = WolfMode.FALLING
         w.vy = 40f
         // Higher pops (round 1) / longer falls (round 2) score more.
