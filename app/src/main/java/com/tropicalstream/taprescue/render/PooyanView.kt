@@ -145,8 +145,9 @@ class PooyanView(
                     drawPiglet(c, mamaX + 34f + i * 26f, groundY + 8f, facingLeft = true, wiggle = w)
                 }
                 for (i in 0 until 3) {
+                    // closing on Mama from the right, so they run muzzle-first
                     val wx = 700f - k * (250f - i * 44f)
-                    drawWolfBody(c, wx, groundY - 4f, running = true)
+                    drawWolfBody(c, wx, groundY - 4f, running = true, facingLeft = true)
                 }
             }
             s < 5.4f -> {
@@ -154,10 +155,12 @@ class PooyanView(
                 caption = "They take the piglets."
                 drawStoryMama(c, mamaX, groundY, calm = false)
                 for (i in 0 until 3) {
-                    // each wolf carries a piglet away to the right
+                    // fleeing right with the piglets. The piglet rides AHEAD of
+                    // the muzzle — carried, not trailing behind the tail — and
+                    // still faces back toward Mama, squirming.
                     val wx = 450f - i * 44f + k * 260f
                     drawWolfBody(c, wx, groundY - 4f, running = true)
-                    drawPiglet(c, wx - 16f, groundY - 16f, facingLeft = true,
+                    drawPiglet(c, wx + 22f, groundY - 12f, facingLeft = true,
                                wiggle = sin(t * 12f + i) * 3f)
                 }
             }
@@ -370,7 +373,26 @@ class PooyanView(
         drawWolfBody(c, x, y + 8f)
     }
 
-    private fun drawWolfBody(c: Canvas, x: Float, y: Float, running: Boolean = false) {
+    /**
+     * @param facingLeft mirror the sprite. The wolf is drawn muzzle-forward at
+     *   +x, so anything travelling left must be flipped or it runs backwards —
+     *   which is exactly what the cutscene's arriving wolves were doing.
+     */
+    private fun drawWolfBody(
+        c: Canvas, x: Float, y: Float,
+        running: Boolean = false, facingLeft: Boolean = false
+    ) {
+        if (facingLeft) {
+            c.save()
+            c.scale(-1f, 1f, x, y)      // mirror about the wolf's own centre
+            drawWolfBodyRight(c, x, y, running)
+            c.restore()
+            return
+        }
+        drawWolfBodyRight(c, x, y, running)
+    }
+
+    private fun drawWolfBodyRight(c: Canvas, x: Float, y: Float, running: Boolean = false) {
         // Filled silhouette, not an outline sketch. On a waveguide a thin
         // magenta wireframe reads as noise; a solid body with a bright rim
         // holds its shape at speed and against the neon terrain.

@@ -313,24 +313,24 @@ class PooyanGame {
         spawnTimer -= dt
         if (spawnTimer > 0f) return
         val interval = (when (phase) {
-            Phase.DESCENT -> 3.0f
-            Phase.ASCENT -> 2.8f
+            Phase.DESCENT -> 2.4f
+            Phase.ASCENT -> 2.24f
             Phase.BONUS -> 1.0f
-        } - level * 0.08f).coerceAtLeast(1.3f)
+        } - level * 0.08f).coerceAtLeast(1.04f)
         spawnTimer = interval * (0.75f + rng.nextFloat() * 0.5f)
         spawnQueue--
 
-        val special = phase != Phase.BONUS && rng.nextFloat() < (0.06f + level * 0.02f).coerceAtMost(0.3f)
+        val special = phase != Phase.BONUS && rng.nextFloat() < (0.072f + level * 0.024f).coerceAtMost(0.36f)
         when (phase) {
             Phase.DESCENT -> wolves.add(Wolf(
                 x = 60f + rng.nextFloat() * 380f, y = LEDGE_Y + 10f,
                 hp = if (special) 2 else 1, special = special,
-                vy = (17f + level * 2f) * (0.9f + rng.nextFloat() * 0.4f)
+                vy = (20.4f + level * 2.4f) * (0.9f + rng.nextFloat() * 0.4f)
             ))
             Phase.ASCENT -> wolves.add(Wolf(
                 x = 70f + rng.nextFloat() * 360f, y = GROUND_Y - 8f,
                 hp = if (special) 2 else 1, special = special,
-                vy = -(20f + level * 2f) * (0.9f + rng.nextFloat() * 0.4f)
+                vy = -(24f + level * 2.4f) * (0.9f + rng.nextFloat() * 0.4f)
             ))
             Phase.BONUS -> wolves.add(Wolf(
                 x = 140f + (spawnQueue % 5) * 70f, y = GROUND_Y - 8f,
@@ -382,7 +382,7 @@ class PooyanGame {
                     if (w.x >= LIFT_X - 6f) { w.mode = WolfMode.CLIMBING; w.x = LIFT_X - 6f; w.sway = 0f }
                 }
                 WolfMode.CLIMBING -> {
-                    w.y -= (15f + level * 1.5f) * dt
+                    w.y -= (18f + level * 1.8f) * dt
                     w.sway += dt
                     if (w.sway > 0.55f) { w.sway = 0f; onClimbTick?.invoke() }
                     // Drew level with the lift → Mama is eaten (round 1 death).
@@ -400,12 +400,12 @@ class PooyanGame {
     private fun maybeThrowRock(w: Wolf, dt: Float) {
         w.rockTimer -= dt
         if (w.rockTimer > 0f) return
-        w.rockTimer = 5.0f + rng.nextFloat() * 3.5f - level * 0.15f
-        if (rng.nextFloat() > (0.22f + level * 0.04f).coerceAtMost(0.6f)) return
+        w.rockTimer = 4.0f + rng.nextFloat() * 2.8f - level * 0.15f
+        if (rng.nextFloat() > (0.26f + level * 0.05f).coerceAtMost(0.7f)) return
         // Lob a rock at where Mama is right now.
         val dx = LIFT_X - w.x; val dy = liftY - w.y
         val d = hypot(dx, dy).coerceAtLeast(1f)
-        val speed = 115f + level * 7f
+        val speed = 138f + level * 8f
         rocks.add(Rock(w.x + 10f, w.y, dx / d * speed, dy / d * speed - 30f))
         onRockThrow?.invoke()
     }
