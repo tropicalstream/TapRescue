@@ -64,6 +64,7 @@ class PooyanView(
 
         when (game.state) {
             State.ATTRACT -> drawAttract(canvas)
+            State.STORY -> drawStory(canvas)
             State.GAME_OVER -> { drawWorld(canvas); drawGameOver(canvas) }
             State.PAUSED -> { drawWorld(canvas); drawPause(canvas) }
             else -> {
@@ -102,6 +103,113 @@ class PooyanView(
         text.color = DIM; text.textSize = 13f
         c.drawText("pad ↑↓ move · tap shoot · flick ← meat · 2×tap pause", 320f, 446f, text)
         c.drawText("clear a round to free a piglet", 320f, 464f, text)
+    }
+
+    /**
+     * The abduction, in four beats. The player watches the wolves take the
+     * piglets before round 1 so the rescue is something they already care
+     * about rather than an abstract shooting gallery. Tap skips it.
+     *
+     *   0.0-1.8  Mama and her three piglets at home
+     *   1.8-3.6  wolves come over the ridge
+     *   3.6-5.4  the snatch — piglets hauled off to the right
+     *   5.4-7.4  Mama alone, then her resolve
+     */
+    private fun drawStory(c: Canvas) {
+        val s = game.stateTimer
+        val groundY = 360f
+        stroke.color = 0xFF2FE6A7.toInt(); stroke.strokeWidth = 2.5f
+        c.drawLine(0f, groundY + 22f, 640f, groundY + 22f, stroke)
+
+        text.textAlign = Paint.Align.CENTER
+
+        // Mama holds her ground on the left; the wolves sweep in from the right.
+        val mamaX = 150f
+        val caption: String
+
+        when {
+            s < 1.8f -> {
+                caption = "A quiet morning on the ridge…"
+                drawStoryMama(c, mamaX, groundY, calm = true)
+                for (i in 0 until 3) {
+                    val w = sin(t * 2.4f + i * 1.5f) * 1.8f
+                    drawPiglet(c, mamaX + 34f + i * 26f, groundY + 8f, facingLeft = true, wiggle = w)
+                }
+            }
+            s < 3.6f -> {
+                val k = ((s - 1.8f) / 1.8f).coerceIn(0f, 1f)
+                caption = "…until the wolves come over the ridge."
+                drawStoryMama(c, mamaX, groundY, calm = false)
+                for (i in 0 until 3) {
+                    val w = sin(t * 6f + i * 1.5f) * 2.4f
+                    drawPiglet(c, mamaX + 34f + i * 26f, groundY + 8f, facingLeft = true, wiggle = w)
+                }
+                for (i in 0 until 3) {
+                    val wx = 700f - k * (250f - i * 44f)
+                    drawWolfBody(c, wx, groundY - 4f, running = true)
+                }
+            }
+            s < 5.4f -> {
+                val k = ((s - 3.6f) / 1.8f).coerceIn(0f, 1f)
+                caption = "They take the piglets."
+                drawStoryMama(c, mamaX, groundY, calm = false)
+                for (i in 0 until 3) {
+                    // each wolf carries a piglet away to the right
+                    val wx = 450f - i * 44f + k * 260f
+                    drawWolfBody(c, wx, groundY - 4f, running = true)
+                    drawPiglet(c, wx - 16f, groundY - 16f, facingLeft = true,
+                               wiggle = sin(t * 12f + i) * 3f)
+                }
+            }
+            else -> {
+                val k = ((s - 5.4f) / 2.0f).coerceIn(0f, 1f)
+                caption = if (k < 0.5f) "Mama Pig is alone." else "She is going to get them back."
+                drawStoryMama(c, mamaX, groundY, calm = false)
+                // the cage they end up in, arriving at the right
+                val cageX = 430f + (1f - k) * 180f
+                stroke.color = CYAN; stroke.strokeWidth = 2f; stroke.alpha = 200
+                c.drawRect(cageX, groundY - 16f, cageX + 58f, groundY + 16f, stroke)
+                for (i in 0..3) c.drawLine(cageX + 12f + i * 12f, groundY - 16f, cageX + 12f + i * 12f, groundY + 16f, stroke)
+                stroke.alpha = 255
+                for (i in 0 until 3) drawPiglet(c, cageX + 14f + i * 16f, groundY + 2f, facingLeft = true)
+            }
+        }
+
+        text.color = WHITE; text.textSize = 19f
+        c.drawText(caption, 320f, 90f, text)
+        text.color = DIM; text.textSize = 12f
+        c.drawText("tap to skip", 320f, 462f, text)
+    }
+
+    /** Mama on foot for the cutscene — same face as the gondola sprite. */
+    private fun drawStoryMama(c: Canvas, x: Float, y: Float, calm: Boolean) {
+        paint.color = PINK
+        c.drawOval(x - 16f, y - 8f, x + 12f, y + 14f, paint)          // body
+        c.drawCircle(x - 18f, y - 10f, 12f, paint)                     // head
+        path.reset()                                                   // ears
+        path.moveTo(x - 26f, y - 18f); path.lineTo(x - 24f, y - 28f); path.lineTo(x - 17f, y - 19f)
+        path.close(); c.drawPath(path, paint)
+        path.reset()
+        path.moveTo(x - 13f, y - 19f); path.lineTo(x - 7f, y - 27f); path.lineTo(x - 9f, y - 17f)
+        path.close(); c.drawPath(path, paint)
+        paint.color = 0xFFE91E63.toInt()                               // snout
+        c.drawOval(x - 33f, y - 12f, x - 23f, y - 5f, paint)
+        paint.color = 0xFF7A1030.toInt()
+        c.drawCircle(x - 30.5f, y - 8.5f, 1.2f, paint)
+        c.drawCircle(x - 26.5f, y - 8.5f, 1.2f, paint)
+        paint.color = WHITE                                            // eye
+        c.drawCircle(x - 21f, y - 13f, 2.8f, paint)
+        paint.color = 0xFF10121A.toInt()
+        c.drawCircle(x - 22.2f, y - 13f, 1.4f, paint)
+        stroke.color = PINK; stroke.strokeWidth = 3f                   // legs
+        val kick = if (calm) 0f else sin(t * 10f) * 2.5f
+        c.drawLine(x - 8f, y + 12f, x - 9f - kick, y + 22f, stroke)
+        c.drawLine(x + 4f, y + 12f, x + 5f + kick, y + 22f, stroke)
+        if (!calm) {                                                   // alarm marks
+            stroke.color = WHITE; stroke.strokeWidth = 2.4f
+            c.drawLine(x - 20f, y - 30f, x - 22f, y - 38f, stroke)
+            c.drawLine(x - 10f, y - 28f, x - 6f, y - 36f, stroke)
+        }
     }
 
     // ------------------------------------------------------------- world
@@ -157,28 +265,51 @@ class PooyanView(
         stroke.alpha = 255
     }
 
+    /**
+     * One piglet: a miniature of Mama, so the family resemblance does the
+     * explaining. A labelled row of dots needs words; a tiny pig with ears and
+     * a snout does not.
+     */
+    private fun drawPiglet(c: Canvas, x: Float, y: Float, facingLeft: Boolean = true, wiggle: Float = 0f) {
+        val dir = if (facingLeft) -1f else 1f
+        paint.color = PINK
+        c.drawCircle(x, y, 5.5f, paint)                                  // body
+        c.drawCircle(x + 5f * dir, y - 2.5f, 4f, paint)                  // head
+        path.reset()                                                     // ears
+        path.moveTo(x + 2.5f * dir, y - 6f)
+        path.lineTo(x + 4f * dir, y - 10f)
+        path.lineTo(x + 6.5f * dir, y - 5.5f)
+        path.close(); c.drawPath(path, paint)
+        paint.color = 0xFFE91E63.toInt()                                 // snout
+        c.drawCircle(x + 8.5f * dir, y - 1.5f, 2.2f, paint)
+        paint.color = WHITE                                              // eye
+        c.drawCircle(x + 5.5f * dir, y - 3.5f, 1.1f, paint)
+        stroke.color = PINK; stroke.strokeWidth = 1.6f                   // curly tail
+        c.drawArc(x - 8f * dir, y - 4f, x - 2f * dir, y + 2f, 200f, 240f, false, stroke)
+        stroke.strokeWidth = 2f
+        c.drawLine(x - 2f, y + 5f, x - 2f + wiggle, y + 9f, stroke)      // legs
+        c.drawLine(x + 2f, y + 5f, x + 2f - wiggle, y + 9f, stroke)
+    }
+
     private fun drawPiglets(c: Canvas) {
-        // caged piglets bottom-left; freed ones hop outside the cage
+        // The cage bottom-left is the whole motivation: these are Mama's
+        // piglets, held by the wolves. Drawn as actual piglets so the scene
+        // states its own stakes without a caption.
         val cx = 26f; val cy = PooyanGame.GROUND_Y - 34f
         stroke.color = CYAN; stroke.strokeWidth = 2f; stroke.alpha = 160
         c.drawRect(cx, cy, cx + 58f, cy + 32f, stroke)
         for (i in 0..3) c.drawLine(cx + 12f + i * 12f, cy, cx + 12f + i * 12f, cy + 32f, stroke)
         stroke.alpha = 255
         for (i in 0 until 3) {
-            paint.color = PINK
-            c.drawCircle(cx + 13f + i * 17f, cy + 20f, 6f, paint)
+            // a small restless shuffle — caged, not ornamental
+            val w = sin(t * 2.2f + i * 1.7f) * 1.6f
+            drawPiglet(c, cx + 14f + i * 16f, cy + 18f, facingLeft = false, wiggle = w)
         }
         for (i in 0 until game.pigletsFreed.coerceAtMost(4)) {
             val hop = if ((t * 3f + i).toInt() % 2 == 0) 3f else 0f
-            paint.color = PINK
-            c.drawCircle(cx + 74f + i * 16f, cy + 22f - hop, 6f, paint)
+            drawPiglet(c, cx + 76f + i * 18f, cy + 20f - hop, facingLeft = false,
+                       wiggle = sin(t * 6f + i) * 2f)
         }
-        // Say what the cage IS. Three pink dots behind bars read as scenery;
-        // they are the reason Mama is up there at all, and the player has no
-        // way to know that without being told.
-        text.textAlign = Paint.Align.LEFT
-        text.color = CYAN; text.textSize = 11f
-        c.drawText("YOUR PIGLETS", cx, cy - 6f, text)
     }
 
     private fun drawPushersAndBoulder(c: Canvas) {

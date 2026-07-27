@@ -56,9 +56,12 @@ class PooyanGame {
         const val EXTRA_LIFE_FIRST = 20_000
         const val EXTRA_LIFE_EVERY = 50_000
         const val LIVES_MAX = 5
+
+        /** Length of the opening abduction cutscene. Tap skips it. */
+        const val STORY_SECS = 7.4f
     }
 
-    enum class State { ATTRACT, ROUND_INTRO, PLAYING, LIFE_LOST, ROUND_CLEAR, GAME_OVER, PAUSED }
+    enum class State { ATTRACT, STORY, ROUND_INTRO, PLAYING, LIFE_LOST, ROUND_CLEAR, GAME_OVER, PAUSED }
     enum class Phase { DESCENT, ASCENT, BONUS }
     enum class WolfMode { BALLOON, FALLING, WALKING, CLIMBING, PUSHER, ESCAPED }
 
@@ -141,6 +144,7 @@ class PooyanGame {
     fun onTap() {
         when (state) {
             State.ATTRACT -> startGame()
+            State.STORY -> beginPhase(Phase.DESCENT)     // tap to skip the cutscene
             State.GAME_OVER -> { state = State.ATTRACT; stateTimer = 0f }
             State.PAUSED -> state = State.PLAYING
             State.PLAYING -> if (phase == Phase.BONUS) throwMeat() else shoot()
@@ -175,7 +179,11 @@ class PooyanGame {
         level = 1; score = 0; lives = 5; meat = 2
         killsTowardMeat = 0; nextLifeAt = EXTRA_LIFE_FIRST; pigletsFreed = 0
         onStart?.invoke()
-        beginPhase(Phase.DESCENT)
+        // The abduction plays first: the player should SEE the wolves take the
+        // piglets, so round 1 is a rescue they already care about rather than
+        // an abstract shooting gallery.
+        state = State.STORY
+        stateTimer = 0f
     }
 
     private fun beginPhase(p: Phase) {
@@ -269,6 +277,7 @@ class PooyanGame {
     fun update(dt: Float) {
         stateTimer += dt
         when (state) {
+            State.STORY -> if (stateTimer > STORY_SECS) beginPhase(Phase.DESCENT)
             State.ROUND_INTRO -> if (stateTimer > 2.0f) { state = State.PLAYING; stateTimer = 0f }
             State.ROUND_CLEAR -> if (stateTimer > 2.4f) advancePhase()
             State.LIFE_LOST -> if (stateTimer > 2.2f) {
